@@ -32,9 +32,6 @@ class Log:
         self.svar[key]=value
 
     def new_iteration(self):
-        if (self.t>=0):
-            print(self.dvar[self.t])
-
         self.t=self.t+1
         self.dvar.append({})
         self.scopes = []
@@ -116,7 +113,6 @@ class Log:
             filename=str(datetime.now()).replace(" ","_")+".log"
             while(os.path.isfile(directory+"/"+filename)):
                 filename = str(datetime.now()).replace(" ", "_")+".log"
-        print("Saving in file is " + directory+"/"+filename)
         pickle.dump( self, open( directory+"/"+filename, "wb" ) )
 
     def get_static_values(self):
