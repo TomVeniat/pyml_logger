@@ -25,6 +25,7 @@ class Log:
     '''
 
     ITERATION_KEY = '_iteration'
+    SCOPE_SEP = '.'
 
     def __init__(self):
         self.s_var = {}
@@ -43,8 +44,29 @@ class Log:
     def push_scope(self, name):
         self.scopes.append(name)
 
+    def push_scopes(self, names):
+        '''
+        Push several scopes.
+        :param names: Array or string of :attr:`SCOPE_SEP` separated scope names.
+            ex: 'scope_1.scope2.[...].scope_n'
+                ['scope_1', 'scope2', [...], 'scope_n']
+        :return: the depth of added scopes
+        '''
+        if names is None:
+            return 0
+        if isinstance(names, str):
+            names = names.split(self.SCOPE_SEP)
+        print('NAMES : {}'.format(names))
+        for s in names:
+            self.push_scope(s)
+        return len(names)
+
     def pop_scope(self):
         return self.scopes.pop()
+
+    def pop_scopes(self, n):
+        for _ in range(n):
+            self.pop_scope()
 
     def _get_dtable(self, scope, t):
         '''
@@ -70,9 +92,16 @@ class Log:
             tt = tt[s]
         tt[key] = value
 
-    def add_dynamic_values(self, **kwargs):
+    def add_dynamic_values(self, scope_=None, **kwargs):
+        '''
+        Add all dynamic values given in kwargs (expect 'scope_') to 
+        :param scope_: Scope in which the values will be added. See :func:`~pyml_logger.Log.push_scopes` for format.
+        :param kwargs: Each kwarg will be added to the logger under the given scope (can't have a 'scope_' key for now).
+        '''
+        n_scopes = self.push_scopes(scope_)
         for k, v in kwargs.items():
             self.add_dynamic_value(k, v)
+        self.pop_scopes(n_scopes)
 
     def get_last_dynamic_value(self, key):
         '''
