@@ -1,9 +1,11 @@
-from datetime import datetime,date,time
 import os.path
 import pickle
+from datetime import datetime
+
+import numpy as np
 import pandas as pd
 import visdom
-import numpy as np
+
 
 class Log:
     '''
@@ -20,23 +22,21 @@ class Log:
             log.add_dynamic_value("perf",perf)
             log.add_dynamic_value("iteration",t)
     '''
-    def __init__(self):
-        self.svar={}
-        self.dvar=[]
-        self.t=-1
-        self.scopes=[]
-        self.file=None
-        self.vis=None
 
-    def add_static_value(self,key,value):
-        self.svar[key]=value
+    ITERATION_KEY = '_iteration'
+
+    def __init__(self):
+        self.s_var = {}
+        self.d_var = []
+        self.t = -1
+        self.scopes = []
+        self.file = None
+        self.vis = None
 
     def new_iteration(self):
-        if (self.t>=0):
-            print(self.dvar[self.t])
-
-        self.t=self.t+1
-        self.dvar.append({})
+        self.t += 1
+        self.d_var.append({})
+        self.add_dynamic_value(self.ITERATION_KEY, self.t)
         self.scopes = []
 
     def push_scope(self, name):
@@ -45,144 +45,162 @@ class Log:
     def pop_scope(self):
         return self.scopes.pop()
 
-    def _get_dtable(self,scope,t):
-        tt=self.dvar[t]
+    def _get_dtable(self, scope, t):
+        '''
+        Returns the dynamic values registered at time :t: within the scope :scope:
+        '''
+        tt = self.d_var[t]
         for s in scope:
-            tt=tt[s]
+            tt = tt[s]
         return tt
 
-    def add_dynamic_value(self,key,value):
-        tt=self.dvar[self.t]
+    def add_static_value(self, key, value):
+        self.s_var[key] = value
+
+    def add_static_values(self, **kwargs):
+        for k, v in kwargs.items():
+            self.add_static_value(k, v)
+
+    def add_dynamic_value(self, key, value):
+        tt = self.d_var[self.t]
         for s in self.scopes:
-            if (not s in tt):
-                tt[s]={}
-            tt=tt[s]
+            if s not in tt:
+                tt[s] = {}
+            tt = tt[s]
+        tt[key] = value
 
-        tt[key]=value
+    def add_dynamic_values(self, **kwargs):
+        for k, v in kwargs.items():
+            self.add_dynamic_value(k, v)
 
-    def get_last_dynamic_value(self,key):
-        key=".".join(self.scopes)+key
-        return self.dvar[self.t][key]
+    def get_last_dynamic_value(self, key):
+        '''
+        :param key: The key of the target element.
+        :return: The value from current iteration associated with the given key found in the deepest level of 
+        the current scope.
+        
+        Todo: Define behaviour in some case, for example:
+            * Only search in current iteration ? 
+            * What if a more recent value is present in another scope ?
+        '''
+        values = self.d_var[self.t]
+        res = None
+        if key in values:
+            res = values[key]
+        for s in self.scopes:
+            if s not in values:
+                break
+            values = values[s]
+            if key in values:
+                res = values[key]
+        return res
 
-    def get_column(self,key):
-        c=[]
-        for d in self.dvar:
+    def get_column(self, key):
+        c = []
+        for d in self.d_var:
             c.append(d[key])
         return c
 
     def print_static(self):
         print("===== STATIC VARIABLES =========")
-        for i in self.svar:
-            print(str(i)+" = "+str(self.svar[i]))
+        for i in self.s_var:
+            print(str(i) + " = " + str(self.s_var[i]))
 
     def _generate_columns_names(self):
-        columns={}
-        scope=[]
-        for t in range(self.t):
-            tt=self.dvar[t]
-            cc=self._generate_columns_names_from_dict(tt,scope)
-            for kk in cc.keys():
-                columns[kk]=1
-        return columns
+        columns = set()
+        for t in range(self.t + 1):
+            tt = self.d_var[t]
+            cc = self._generate_columns_names_from_dict(tt)
+            columns.update(cc)
+        return list(columns)
 
-    def _generate_columns_names_from_dict(self,d,scope):
-        columns={}
+    def _generate_columns_names_from_dict(self, d, scope=None):
+        if scope is None:
+            scope = []
+        columns = set()
         for k in d.keys():
-            if (isinstance(d[k],dict)):
+            if isinstance(d[k], dict):
                 scope.append(k)
-                cc=self._generate_columns_names_from_dict(d[k],scope)
-                for kk in cc.keys():
-                    columns[kk]=1
+                cc = self._generate_columns_names_from_dict(d[k], scope)
+                columns.update(cc)
                 scope.pop()
             else:
-                columns[".".join(scope)+"."+k]=1
-
+                columns.add(".".join(scope + [k]))
         return columns
 
-    def get_scoped_value(self,t,name):
-        scope=name.split(".")
-        tt=self.dvar[t]
+    def get_scoped_value(self, t, name):
+        scope = name.split(".")
+        tt = self.d_var[t]
         for s in scope:
-            if (not s in tt):
+            if s not in tt:
                 return None
-            tt=tt[s]
+            tt = tt[s]
         return tt
 
-    def save_file(self,filename=None,directory=None):
+    def save_file(self, filename=None, directory=None):
         if (directory is None):
-            directory="logs"
+            directory = "logs"
 
         if (filename is None):
-            filename=str(datetime.now()).replace(" ","_")+".log"
-            while(os.path.isfile(directory+"/"+filename)):
-                filename = str(datetime.now()).replace(" ", "_")+".log"
-        print("Saving in file is " + directory+"/"+filename)
-        pickle.dump( self, open( directory+"/"+filename, "wb" ) )
+            filename = str(datetime.now()).replace(" ", "_") + ".log"
+            while (os.path.isfile(directory + "/" + filename)):
+                filename = str(datetime.now()).replace(" ", "_") + ".log"
+        pickle.dump(self, open(directory + "/" + filename, "wb"))
 
     def get_static_values(self):
-        return self.svar
+        return self.s_var
 
     def to_array(self):
         '''
-        Transforms the dynamic values to an array
+        Transforms the dynamic values to an array.
+        The first row contains colum names, each following row correponds to an iteration
         '''
         names = self._generate_columns_names()
-        names["_iteration"] = 1
+        res = [names]
 
-        retour = []
-        cn = []
-        for l in names:
-            cn.append(l)
-        retour.append(cn)
+        for t in range(len(self.d_var)):
+            vals = []
+            for name in names:
+                v = self.get_scoped_value(t, name)
+                vals.append(v)
+            res.append(vals)
+        return res
 
-        for t in range(len(self.dvar)):
-            cn = []
-            for l in names:
-                if (l == "_iteration"):
-                    cn.append(t)
-                else:
-                    v = self.get_scoped_value(t, l)
-                    cn.append(v)
-            retour.append(cn)
-        return retour
-
-    def plot_line(self,column_names,win=None,opts={}):
-        if (len(self.dvar)<=1):
+    def plot_line(self, column_names, x_name=None, win=None, opts=None):
+        if opts is None:
+            opts = {}
+        if len(self.d_var) == 0:
             return None
 
-        if (self.vis is None):
-            self.vis=visdom.Visdom()
+        if x_name is None:
+            x_name = self.ITERATION_KEY
 
-        r=[]
-        X=[]
-        for t in range(len(self.dvar)):
-            rr=[]
-            for c in column_names:
-                rr.append(self.get_scoped_value(t,c))
-            r.append(rr)
-            X.append(t)
+        if self.vis is None:
+            self.vis = visdom.Visdom()
 
-        print(np.array(r).shape)
-        print(column_names)
-        print(np.array(X).ndim)
-        opts_={}
-        opts_["legend"]=column_names
-        for k in opts:
-            opts_[k]=opts[k]
-        print(opts_)
-        return self.vis.line(X=np.array(X),Y=np.array(r),opts=opts_,win=win)
-        #options={"legend":column_names}
+        x = []
+        values = []
 
+        for t in range(self.t+1):
+            cur_values = []
+            for key in column_names:
+                cur_values.append(self.get_scoped_value(t, key))
+            values.append(cur_values)
+            x.append(self.get_scoped_value(t, x_name))
+
+        opts_ = {"legend": column_names}
+        opts_.update(opts)
+
+        return self.vis.line(X=np.array(x), Y=np.array(values), opts=opts_, win=win)
 
     def to_extended_array(self):
         '''
-        Transforms the dynamic values to an array
+        Transforms the dynamic and static values to an array
         '''
         names = self._generate_columns_names()
-        names["_iteration"] = 1
 
-        for k in self.svar:
-            names["_s_"+k]=1
+        for k in self.s_var:
+            names.append("_s_" + k)
 
         retour = []
         cn = []
@@ -190,13 +208,11 @@ class Log:
             cn.append(l)
         retour.append(cn)
 
-        for t in range(len(self.dvar)):
-            cn=[]
+        for t in range(len(self.d_var)):
+            cn = []
             for l in names:
-                if (l.startswith('_s_')):
-                    cn.append(self.svar[l[3:]])
-                elif (l == "_iteration"):
-                    cn.append(t)
+                if l.startswith('_s_'):
+                    cn.append(self.s_var[l[3:]])
                 else:
                     v = self.get_scoped_value(t, l)
                     cn.append(v)
@@ -207,7 +223,6 @@ class Log:
         a = self.to_array()
         return pd.DataFrame(data=a[1:], columns=a[0])
 
-
     def to_extended_dataframe(self):
         a = self.to_extended_array()
         return pd.DataFrame(data=a[1:], columns=a[0])
@@ -215,41 +230,41 @@ class Log:
 
 def logs_to_dataframe(filenames):
     print("Loading %d files and building Dataframe" % len(filenames))
-    arrays=[]
+    arrays = []
     for f in filenames:
-        log=pickle.load(open(f,"rb"))
+        log = pickle.load(open(f, "rb"))
         arrays.append(log.to_extended_array())
 
-    #Building the set of all columns + index per log
-    indexes=[]
-    all_columns={}
+    # Building the set of all columns + index per log
+    indexes = []
+    all_columns = {}
     for i in range(len(arrays)):
-        index={}
-        columns_names=arrays[i][0]
+        index = {}
+        columns_names = arrays[i][0]
         for j in range(len(columns_names)):
-            index[columns_names[j]]=j
-            all_columns[columns_names[j]]=1
+            index[columns_names[j]] = j
+            all_columns[columns_names[j]] = 1
 
         indexes.append(index)
 
-    retour=[]
-    all_names=["_log_idx","_log_file"]
+    retour = []
+    all_names = ["_log_idx", "_log_file"]
     for a in all_columns:
         all_names.append(a)
 
     for i in range(len(arrays)):
-        arr=arrays[i]
-        filename=filenames[i]
+        arr = arrays[i]
+        filename = filenames[i]
 
-        for rt in range(len(arr)-1):
-            t=rt+1
-            line=arr[t]
+        for rt in range(len(arr) - 1):
+            t = rt + 1
+            line = arr[t]
 
-            new_line=[]
+            new_line = []
             for idx_c in range(len(all_names)):
                 new_line.append(None)
             for idx_c in range(len(all_names)):
-                column_name=all_names[idx_c]
+                column_name = all_names[idx_c]
 
                 if (column_name == "_log_file"):
                     new_line[idx_c] = filename
@@ -261,4 +276,4 @@ def logs_to_dataframe(filenames):
 
             retour.append(new_line)
 
-    return pd.DataFrame(data=retour,columns=all_names)
+    return pd.DataFrame(data=retour, columns=all_names)
