@@ -196,11 +196,14 @@ class Log:
             res.append(vals)
         return res
 
-    def plot_line(self, column_names, x_name=None, win=None, opts=None):
+    def plot_line(self, columns, x_name=None, win=None, opts=None):
         if opts is None:
             opts = {}
         if len(self.d_var) == 0:
             return None
+
+        if type(columns) is str:
+            columns = [columns]
 
         if x_name is None:
             x_name = self.ITERATION_KEY
@@ -213,15 +216,15 @@ class Log:
 
         for t in range(self.t+1):
             cur_values = []
-            for key in column_names:
+            for key in columns:
                 cur_values.append(self.get_scoped_value(t, key))
             values.append(cur_values)
             x.append(self.get_scoped_value(t, x_name))
 
-        opts_ = {"legend": column_names}
+        opts_ = {"legend": columns}
         opts_.update(opts)
 
-        return self.vis.line(X=np.array(x), Y=np.array(values), opts=opts_, win=win)
+        return self.vis.line(X=np.array(x), Y=np.array(values).squeeze(), opts=opts_, win=win)
 
     def to_extended_array(self):
         '''
