@@ -202,8 +202,8 @@ class Log:
         if len(self.d_var) == 0:
             return None
 
-        if type(columns) is str:
-            columns = [columns]
+        if type(columns) is not list:
+            columns = list(columns)
 
         if x_name is None:
             x_name = self.ITERATION_KEY
@@ -224,7 +224,12 @@ class Log:
         opts_ = {"legend": columns}
         opts_.update(opts)
 
-        return self.vis.line(X=np.array(x), Y=np.array(values).squeeze(), opts=opts_, win=win)
+        x = np.array(x)
+        y = np.array(values)
+        if len(columns) == 1:
+            y = y.flatten()
+
+        return self.vis.line(X=x, Y=y, opts=opts_, win=win)
 
     def to_extended_array(self):
         '''
