@@ -203,7 +203,7 @@ class Log:
             return None
 
         if type(columns) is not list:
-            columns = list(columns)
+            columns = [columns]
 
         if x_name is None:
             x_name = self.ITERATION_KEY
