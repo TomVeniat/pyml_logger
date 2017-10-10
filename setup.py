@@ -4,7 +4,7 @@
 from setuptools import setup,find_packages
 
 setup(name='pyml_logger',
-      version='1.0.1',
+      version='1.0.2',
       description='A simple set of Logging classes for experiments',
       author='Ludovic Denoyer',
       author_email='ludovic.denoyer@lip6.fr',

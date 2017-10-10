@@ -268,6 +268,17 @@ class Log:
         a = self.to_extended_array()
         return pd.DataFrame(data=a[1:], columns=a[0])
 
+    def get_state(self):
+            return {
+                't': self.t,
+                'd_var': self.d_var
+            }
+
+    def set_state(self, state):
+        for key, val in state.items():
+            assert hasattr(self, key)
+            setattr(self, key, val)
+
 
 def logs_to_dataframe(filenames):
     print("Loading %d files and building Dataframe" % len(filenames))
