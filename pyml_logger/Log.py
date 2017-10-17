@@ -275,10 +275,10 @@ class Log:
             }
 
     def set_state(self, state):
-        for key, val in state.items():
-            assert hasattr(self, key)
-            setattr(self, key, val)
-
+        self.t = state['t']
+        assert len(self.d_var) == 0
+        for step in state['d_var']:
+            self.d_var.append(step)
 
 def logs_to_dataframe(filenames):
     print("Loading %d files and building Dataframe" % len(filenames))
