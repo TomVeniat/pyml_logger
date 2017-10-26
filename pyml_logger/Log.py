@@ -56,7 +56,6 @@ class Log:
             return 0
         if isinstance(names, str):
             names = names.split(self.SCOPE_SEP)
-        print('NAMES : {}'.format(names))
         for s in names:
             self.push_scope(s)
         return len(names)
@@ -218,8 +217,10 @@ class Log:
             cur_values = []
             for key in columns:
                 cur_values.append(self.get_scoped_value(t, key))
-            values.append(cur_values)
-            x.append(self.get_scoped_value(t, x_name))
+
+            if not None in cur_values:
+                values.append(cur_values)
+                x.append(self.get_scoped_value(t, x_name))
 
         opts_ = {"legend": columns}
         opts_.update(opts)
@@ -228,6 +229,7 @@ class Log:
         y = np.array(values)
         if len(columns) == 1:
             y = y.flatten()
+
 
         return self.vis.line(X=x, Y=y, opts=opts_, win=win)
 
